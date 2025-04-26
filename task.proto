@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package task;
+
+option go_package = "github.com/vandi37/Calculator-Models/stream"; 
+
+enum Operation {
+    ADD = 0;
+    SUBTRACT = 1;
+    MULTIPLY = 2;
+    DIVIDE = 3;
+}
+
+message Task {
+    string id = 1;
+    double arg1 = 2;
+    double arg2 = 3;
+    Operation operation = 4;
+    int32 operation_time = 5;
+}
+
+message Result {
+    string id = 1;         
+    double result = 2;
+}
+
+
+service TaskService {
+    rpc TaskStream (stream Task) returns (stream Result) {}
+}
