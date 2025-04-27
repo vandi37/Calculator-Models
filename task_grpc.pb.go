@@ -26,7 +26,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TaskServiceClient interface {
-	TaskStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[Task, Result], error)
+	TaskStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[Result, Task], error)
 }
 
 type taskServiceClient struct {
@@ -37,24 +37,24 @@ func NewTaskServiceClient(cc grpc.ClientConnInterface) TaskServiceClient {
 	return &taskServiceClient{cc}
 }
 
-func (c *taskServiceClient) TaskStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[Task, Result], error) {
+func (c *taskServiceClient) TaskStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[Result, Task], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &TaskService_ServiceDesc.Streams[0], TaskService_TaskStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[Task, Result]{ClientStream: stream}
+	x := &grpc.GenericClientStream[Result, Task]{ClientStream: stream}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TaskService_TaskStreamClient = grpc.BidiStreamingClient[Task, Result]
+type TaskService_TaskStreamClient = grpc.BidiStreamingClient[Result, Task]
 
 // TaskServiceServer is the server API for TaskService service.
 // All implementations must embed UnimplementedTaskServiceServer
 // for forward compatibility.
 type TaskServiceServer interface {
-	TaskStream(grpc.BidiStreamingServer[Task, Result]) error
+	TaskStream(grpc.BidiStreamingServer[Result, Task]) error
 	mustEmbedUnimplementedTaskServiceServer()
 }
 
@@ -65,7 +65,7 @@ type TaskServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedTaskServiceServer struct{}
 
-func (UnimplementedTaskServiceServer) TaskStream(grpc.BidiStreamingServer[Task, Result]) error {
+func (UnimplementedTaskServiceServer) TaskStream(grpc.BidiStreamingServer[Result, Task]) error {
 	return status.Errorf(codes.Unimplemented, "method TaskStream not implemented")
 }
 func (UnimplementedTaskServiceServer) mustEmbedUnimplementedTaskServiceServer() {}
@@ -90,11 +90,11 @@ func RegisterTaskServiceServer(s grpc.ServiceRegistrar, srv TaskServiceServer) {
 }
 
 func _TaskService_TaskStream_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(TaskServiceServer).TaskStream(&grpc.GenericServerStream[Task, Result]{ServerStream: stream})
+	return srv.(TaskServiceServer).TaskStream(&grpc.GenericServerStream[Result, Task]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TaskService_TaskStreamServer = grpc.BidiStreamingServer[Task, Result]
+type TaskService_TaskStreamServer = grpc.BidiStreamingServer[Result, Task]
 
 // TaskService_ServiceDesc is the grpc.ServiceDesc for TaskService service.
 // It's only intended for direct use with grpc.RegisterService,

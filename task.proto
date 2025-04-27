@@ -26,5 +26,5 @@ message Result {
 
 
 service TaskService {
-    rpc TaskStream (stream Task) returns (stream Result) {}
+    rpc TaskStream (stream Result) returns (stream Task) {}
 }
