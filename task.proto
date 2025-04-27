@@ -28,6 +28,6 @@ message Void  {}
 
 
 service TaskService {
-    rpc TaskStream(stream Task) returns (Void) {}
+    rpc TaskStream(Void) returns (stream Task) {}
     rpc SendResult(Result) returns (Void) {}
 }
