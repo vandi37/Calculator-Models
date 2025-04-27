@@ -27,7 +27,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TaskServiceClient interface {
-	TaskStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[Task, Void], error)
+	TaskStream(ctx context.Context, in *Void, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Task], error)
 	SendResult(ctx context.Context, in *Result, opts ...grpc.CallOption) (*Void, error)
 }
 
@@ -39,18 +39,24 @@ func NewTaskServiceClient(cc grpc.ClientConnInterface) TaskServiceClient {
 	return &taskServiceClient{cc}
 }
 
-func (c *taskServiceClient) TaskStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[Task, Void], error) {
+func (c *taskServiceClient) TaskStream(ctx context.Context, in *Void, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Task], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &TaskService_ServiceDesc.Streams[0], TaskService_TaskStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[Task, Void]{ClientStream: stream}
+	x := &grpc.GenericClientStream[Void, Task]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TaskService_TaskStreamClient = grpc.ClientStreamingClient[Task, Void]
+type TaskService_TaskStreamClient = grpc.ServerStreamingClient[Task]
 
 func (c *taskServiceClient) SendResult(ctx context.Context, in *Result, opts ...grpc.CallOption) (*Void, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -66,7 +72,7 @@ func (c *taskServiceClient) SendResult(ctx context.Context, in *Result, opts ...
 // All implementations must embed UnimplementedTaskServiceServer
 // for forward compatibility.
 type TaskServiceServer interface {
-	TaskStream(grpc.ClientStreamingServer[Task, Void]) error
+	TaskStream(*Void, grpc.ServerStreamingServer[Task]) error
 	SendResult(context.Context, *Result) (*Void, error)
 	mustEmbedUnimplementedTaskServiceServer()
 }
@@ -78,7 +84,7 @@ type TaskServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedTaskServiceServer struct{}
 
-func (UnimplementedTaskServiceServer) TaskStream(grpc.ClientStreamingServer[Task, Void]) error {
+func (UnimplementedTaskServiceServer) TaskStream(*Void, grpc.ServerStreamingServer[Task]) error {
 	return status.Errorf(codes.Unimplemented, "method TaskStream not implemented")
 }
 func (UnimplementedTaskServiceServer) SendResult(context.Context, *Result) (*Void, error) {
@@ -106,11 +112,15 @@ func RegisterTaskServiceServer(s grpc.ServiceRegistrar, srv TaskServiceServer) {
 }
 
 func _TaskService_TaskStream_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(TaskServiceServer).TaskStream(&grpc.GenericServerStream[Task, Void]{ServerStream: stream})
+	m := new(Void)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(TaskServiceServer).TaskStream(m, &grpc.GenericServerStream[Void, Task]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TaskService_TaskStreamServer = grpc.ClientStreamingServer[Task, Void]
+type TaskService_TaskStreamServer = grpc.ServerStreamingServer[Task]
 
 func _TaskService_SendResult_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Result)
@@ -146,7 +156,7 @@ var TaskService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "TaskStream",
 			Handler:       _TaskService_TaskStream_Handler,
-			ClientStreams: true,
+			ServerStreams: true,
 		},
 	},
 	Metadata: "task.proto",
