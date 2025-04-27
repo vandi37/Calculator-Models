@@ -20,13 +20,15 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	TaskService_TaskStream_FullMethodName = "/task.TaskService/TaskStream"
+	TaskService_SendResult_FullMethodName = "/task.TaskService/SendResult"
 )
 
 // TaskServiceClient is the client API for TaskService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TaskServiceClient interface {
-	TaskStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[Result, Task], error)
+	TaskStream(ctx context.Context, in *Void, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Task], error)
+	SendResult(ctx context.Context, in *Result, opts ...grpc.CallOption) (*Void, error)
 }
 
 type taskServiceClient struct {
@@ -37,24 +39,41 @@ func NewTaskServiceClient(cc grpc.ClientConnInterface) TaskServiceClient {
 	return &taskServiceClient{cc}
 }
 
-func (c *taskServiceClient) TaskStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[Result, Task], error) {
+func (c *taskServiceClient) TaskStream(ctx context.Context, in *Void, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Task], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &TaskService_ServiceDesc.Streams[0], TaskService_TaskStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[Result, Task]{ClientStream: stream}
+	x := &grpc.GenericClientStream[Void, Task]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TaskService_TaskStreamClient = grpc.BidiStreamingClient[Result, Task]
+type TaskService_TaskStreamClient = grpc.ServerStreamingClient[Task]
+
+func (c *taskServiceClient) SendResult(ctx context.Context, in *Result, opts ...grpc.CallOption) (*Void, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Void)
+	err := c.cc.Invoke(ctx, TaskService_SendResult_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 
 // TaskServiceServer is the server API for TaskService service.
 // All implementations must embed UnimplementedTaskServiceServer
 // for forward compatibility.
 type TaskServiceServer interface {
-	TaskStream(grpc.BidiStreamingServer[Result, Task]) error
+	TaskStream(*Void, grpc.ServerStreamingServer[Task]) error
+	SendResult(context.Context, *Result) (*Void, error)
 	mustEmbedUnimplementedTaskServiceServer()
 }
 
@@ -65,8 +84,11 @@ type TaskServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedTaskServiceServer struct{}
 
-func (UnimplementedTaskServiceServer) TaskStream(grpc.BidiStreamingServer[Result, Task]) error {
+func (UnimplementedTaskServiceServer) TaskStream(*Void, grpc.ServerStreamingServer[Task]) error {
 	return status.Errorf(codes.Unimplemented, "method TaskStream not implemented")
+}
+func (UnimplementedTaskServiceServer) SendResult(context.Context, *Result) (*Void, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendResult not implemented")
 }
 func (UnimplementedTaskServiceServer) mustEmbedUnimplementedTaskServiceServer() {}
 func (UnimplementedTaskServiceServer) testEmbeddedByValue()                     {}
@@ -90,11 +112,33 @@ func RegisterTaskServiceServer(s grpc.ServiceRegistrar, srv TaskServiceServer) {
 }
 
 func _TaskService_TaskStream_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(TaskServiceServer).TaskStream(&grpc.GenericServerStream[Result, Task]{ServerStream: stream})
+	m := new(Void)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(TaskServiceServer).TaskStream(m, &grpc.GenericServerStream[Void, Task]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TaskService_TaskStreamServer = grpc.BidiStreamingServer[Result, Task]
+type TaskService_TaskStreamServer = grpc.ServerStreamingServer[Task]
+
+func _TaskService_SendResult_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Result)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TaskServiceServer).SendResult(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TaskService_SendResult_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TaskServiceServer).SendResult(ctx, req.(*Result))
+	}
+	return interceptor(ctx, in, info, handler)
+}
 
 // TaskService_ServiceDesc is the grpc.ServiceDesc for TaskService service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -102,13 +146,17 @@ type TaskService_TaskStreamServer = grpc.BidiStreamingServer[Result, Task]
 var TaskService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "task.TaskService",
 	HandlerType: (*TaskServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "SendResult",
+			Handler:    _TaskService_SendResult_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "TaskStream",
 			Handler:       _TaskService_TaskStream_Handler,
 			ServerStreams: true,
-			ClientStreams: true,
 		},
 	},
 	Metadata: "task.proto",
