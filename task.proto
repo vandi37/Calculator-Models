@@ -24,7 +24,10 @@ message Result {
     double result = 2;
 }
 
+message Void  {}
+
 
 service TaskService {
-    rpc TaskStream (stream Result) returns (stream Task) {}
+    rpc TaskStream(Void) returns (stream Task) {}
+    rpc SendResult(Result) returns (Void) {}
 }
