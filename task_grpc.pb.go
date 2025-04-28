@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	TaskService_TaskStream_FullMethodName = "/task.TaskService/TaskStream"
 	TaskService_SendResult_FullMethodName = "/task.TaskService/SendResult"
+	TaskService_SendError_FullMethodName  = "/task.TaskService/SendError"
 )
 
 // TaskServiceClient is the client API for TaskService service.
@@ -29,6 +30,7 @@ const (
 type TaskServiceClient interface {
 	TaskStream(ctx context.Context, in *Void, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Task], error)
 	SendResult(ctx context.Context, in *Result, opts ...grpc.CallOption) (*Void, error)
+	SendError(ctx context.Context, in *Error, opts ...grpc.CallOption) (*Void, error)
 }
 
 type taskServiceClient struct {
@@ -68,12 +70,23 @@ func (c *taskServiceClient) SendResult(ctx context.Context, in *Result, opts ...
 	return out, nil
 }
 
+func (c *taskServiceClient) SendError(ctx context.Context, in *Error, opts ...grpc.CallOption) (*Void, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Void)
+	err := c.cc.Invoke(ctx, TaskService_SendError_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TaskServiceServer is the server API for TaskService service.
 // All implementations must embed UnimplementedTaskServiceServer
 // for forward compatibility.
 type TaskServiceServer interface {
 	TaskStream(*Void, grpc.ServerStreamingServer[Task]) error
 	SendResult(context.Context, *Result) (*Void, error)
+	SendError(context.Context, *Error) (*Void, error)
 	mustEmbedUnimplementedTaskServiceServer()
 }
 
@@ -89,6 +102,9 @@ func (UnimplementedTaskServiceServer) TaskStream(*Void, grpc.ServerStreamingServ
 }
 func (UnimplementedTaskServiceServer) SendResult(context.Context, *Result) (*Void, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendResult not implemented")
+}
+func (UnimplementedTaskServiceServer) SendError(context.Context, *Error) (*Void, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendError not implemented")
 }
 func (UnimplementedTaskServiceServer) mustEmbedUnimplementedTaskServiceServer() {}
 func (UnimplementedTaskServiceServer) testEmbeddedByValue()                     {}
@@ -140,6 +156,24 @@ func _TaskService_SendResult_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TaskService_SendError_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Error)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TaskServiceServer).SendError(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TaskService_SendError_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TaskServiceServer).SendError(ctx, req.(*Error))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TaskService_ServiceDesc is the grpc.ServiceDesc for TaskService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -150,6 +184,10 @@ var TaskService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendResult",
 			Handler:    _TaskService_SendResult_Handler,
+		},
+		{
+			MethodName: "SendError",
+			Handler:    _TaskService_SendError_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
